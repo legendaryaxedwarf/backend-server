@@ -1,0 +1,14 @@
+[Unit]
+Description=Discord Job Notifier Bot
+After=network.target mysql.service
+
+[Service]
+Type=simple
+User=your_username
+WorkingDirectory=/home/your_username/job_notifier
+ExecStart=/home/your_username/job_notifier/venv/bin/python bot.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
