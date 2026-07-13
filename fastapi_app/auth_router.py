@@ -126,4 +126,3 @@ def login(body: LoginRequest, response: Response):
 def logout(response: Response, current_member: dict = Depends(get_current_member)):
     response.delete_cookie(key=COOKIE_NAME, path="/")
     return {"success": True, "data": {"message": "로그아웃 되었습니다."}}
-

@@ -31,7 +31,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def create_access_token(member_id: int, email: str, nickname: str) -> str:
     """
     로그인 성공 시 호출. member_id/email/nickname을 payload에 담아 서명한 토큰을 반환.
-    ⚠️ 비밀번호 등 민감정보는 절대 payload에 넣지 않는다 (서명만 되고 암호화는 안 되어 누구나 디코딩 가능).
+    비밀번호 등 민감정보는 절대 payload에 넣지 않는다 (서명만 되고 암호화는 안 되어 누구나 디코딩 가능).
     """
     if not JWT_SECRET_KEY:
         raise RuntimeError("JWT_SECRET_KEY가 .env에 설정되어 있지 않습니다.")

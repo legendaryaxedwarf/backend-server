@@ -122,7 +122,7 @@ def crawl_jobkorea(keyword, start_page=1, end_page=1):
                         break
 
                 job_list.append({
-                    "source": "잡코리아",
+                    "source": "JOBKOREA",
                     "post_id": post_id,
                     "job_part": keyword,
                     "company_name": company_name,

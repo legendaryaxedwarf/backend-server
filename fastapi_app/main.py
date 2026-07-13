@@ -1,11 +1,17 @@
 from fastapi import FastAPI
 from auth_router import router as auth_router
 from members_router import router as members_router
+from jobs_router import router as jobs_router
+from portfolio_router import router as portfolio_router
+from applications_router import router as applications_router
 
 app = FastAPI()
 
 app.include_router(auth_router, prefix="/api")
 app.include_router(members_router, prefix="/api")
+app.include_router(jobs_router, prefix="/api")
+app.include_router(portfolio_router, prefix="/api")
+app.include_router(applications_router, prefix="/api")
 
 
 @app.get("/")

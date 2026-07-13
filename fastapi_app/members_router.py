@@ -28,7 +28,8 @@ def read_me(current_member: dict = Depends(get_current_member)):
             cursor.execute(
                 """
                 SELECT member_id, email, nickname, user_job_part, user_region,
-                       user_personal_history, user_pay, created_at, updated_at
+                       user_personal_history, user_pay, portfolio_img, portfolio_file,
+                       cname, portfolio_url, created_at, updated_at
                 FROM members
                 WHERE member_id = %s
                 """,
@@ -39,7 +40,6 @@ def read_me(current_member: dict = Depends(get_current_member)):
         conn.close()
 
     if not member:
-        # 토큰은 유효하지만(만료 전) DB에서 이미 탈퇴 처리된 경우
         raise HTTPException(
             status_code=404,
             detail={"code": "NOT_FOUND", "message": "회원 정보를 찾을 수 없습니다."},

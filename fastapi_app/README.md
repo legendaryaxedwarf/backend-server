@@ -1,4 +1,4 @@
-# FastAPI 백엔드 (인증 + 회원 API)
+# FastAPI 백엔드 (인증 + 회원 + 채용공고 + 포트폴리오 + 지원 현황 API)
 
 라즈베리파이 2B(Ubuntu 22.04) 위에서 동작하는 FastAPI 서버 코드입니다. 기능이 추가될 때마다 이 문서의 "3. API 엔드포인트"와 "6. 기능별 구현 메모"만 이어서 추가하면 되도록 구성했습니다.
 
@@ -12,6 +12,9 @@ fastapi_app/
 ├── deps.py             # 인증 확인용 Depends 함수 (get_current_member)
 ├── auth_router.py      # 인증: signup / login / logout
 ├── members_router.py   # 회원: 내 정보 조회 / 희망조건 수정 / 탈퇴
+├── jobs_router.py       # 채용공고: 목록 조회(+지원상태) / 지원 토글
+├── portfolio_router.py  # 포트폴리오: 파일/이미지 업로드, 별칭(cname) 관리, 공개 조회
+├── applications_router.py # 지원 현황: 내가 지원한 공고 목록 조회
 ├── requirements.txt
 ├── .env.example
 └── README.md
@@ -64,8 +67,12 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 | 회원 | GET | `/api/users/me` | 필요 | 내 정보 조회 (마이페이지) | `members_router.py` |
 | 회원 | PUT | `/api/users/me/preferences` | 필요 | 희망 조건 수정 | `members_router.py` |
 | 회원 | DELETE | `/api/users/me` | 필요 | 회원 탈퇴 | `members_router.py` |
-
-> 앞으로 추가될 예정: 채용공고(`/api/jobs`), 지원 현황(`/api/users/me/applications`), 포트폴리오(`/api/portfolios/*`) — `docs/백엔드_개발_기능_정리.md` 참고
+| 채용공고 | GET | `/api/jobs` | 필요 | 공고 목록 조회 (job_part/region 필터, 페이지네이션, 내 지원상태 포함) | `jobs_router.py` |
+| 채용공고 | PATCH | `/api/jobs/{post_id}/apply` | 필요 | 지원 여부 토글 (PENDING ↔ APPLY) | `jobs_router.py` |
+| 포트폴리오 | POST | `/api/users/me/portfolio` | 필요 | 포트폴리오 이미지/파일 업로드 | `portfolio_router.py` |
+| 포트폴리오 | PUT | `/api/users/me/cname` | 필요 | 별칭(cname)/포트폴리오 URL 등록·변경 | `portfolio_router.py` |
+| 포트폴리오 | GET | `/api/portfolios/{cname}` | - | 별칭으로 포트폴리오 공개 조회 (외부 방문자용) | `portfolio_router.py` |
+| 지원 현황 | GET | `/api/users/me/applications` | 필요 | 내가 지원한 공고 목록 조회 (상태 필터, 페이지네이션) | `applications_router.py` |
 
 ## 5. 인증 방식 설계 — 왜 JWT인가 (세션 방식과 비교)
 
@@ -96,9 +103,31 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ### 회원 (members_router.py)
 
 - `GET /users/me`: JWT의 `member_id`로 DB를 조회해 최신 프로필(닉네임, 희망조건, 가입일 등) 반환. 탈퇴 등으로 DB에 없으면 404
-- `PUT /users/me/preferences`: 희망 직무/지역/경력/급여 수정
+- `PUT /users/me/preferences`: 희망 직무/지역/경력/급여 수정 (`user_job_part`가 핵심 — 이후 채용공고 필터링에 사용. 학력/고용형태는 DB에 컬럼이 없어 프론트에서도 제거하기로 함)
 - `DELETE /users/me`: 회원 삭제. `member_job_apply`는 FK `ON DELETE CASCADE`라 자동으로 함께 삭제되고, 응답 시 쿠키도 삭제
+
+### 채용공고 (jobs_router.py)
+
+- `GET /jobs`: `job` 테이블과 `member_job_apply`를 LEFT JOIN해서, 로그인한 회원의 지원 상태(`my_apply_status`)까지 한 번에 반환. `job_part`/`region`은 `LIKE '%...%'` 부분일치 필터, `page`/`size`로 페이지네이션(`LIMIT`/`OFFSET`)
+- `PATCH /jobs/{post_id}/apply`: `post_id` → `job_id` 변환 후, 현재 지원 상태를 조회해 `PENDING ↔ APPLY`로 토글. `member_job_apply`에 UPSERT(`ON DUPLICATE KEY UPDATE`)로 저장하며, `APPLY`로 바뀔 때만 `applied_at`을 현재 시각으로 갱신
+
+### 포트폴리오 (portfolio_router.py)
+
+- 팀 회의 결정에 따라 구조화된 텍스트 필드(소개/기술스택/프로젝트 설명 등) 대신, **파일/이미지 업로드 + 별칭(cname) 링크** 방식으로 구현 (`members` 테이블에 `portfolio_img`, `portfolio_file`, `cname`, `portfolio_url` 컬럼 추가된 것 반영)
+- `POST /users/me/portfolio`: 이미지/파일을 받아 nginx `WEB_ROOT` 하위(`/var/www/html/uploads/portfolio`)에 저장하고, 그 경로를 `members`에 업데이트. FastAPI 프로세스가 이 폴더에 쓰기 권한이 있어야 함 (배포 시 확인 필요)
+- `PUT /users/me/cname`: `cname`은 UNIQUE라 본인 제외 중복 체크 후 저장 (중복 시 409 `CNAME_DUPLICATED`)
+- `GET /portfolios/{cname}`: 로그인 불필요한 공개 엔드포인트. `member_id`, `nickname`, `portfolio_img`, `portfolio_url`만 노출 (이메일 등 비공개 정보 제외)
+- `python-multipart` 패키지가 있어야 FastAPI가 파일 업로드(form-data)를 처리할 수 있음 (`requirements.txt`에 추가됨)
+
+### 지원 현황 (applications_router.py)
+
+- `GET /users/me/applications`: `member_job_apply`를 `job`과 INNER JOIN해서, 로그인한 회원이 지원 이력을 남긴(즉 한 번이라도 지원 토글을 한) 공고 목록을 반환. 아무 상호작용도 없는 공고는 애초에 `member_job_apply`에 행이 없어 자동으로 제외됨
+- `?apply=APPLY`처럼 상태로 필터할 수 있음 (지정 안 하면 PENDING/APPLY 이력 전체 반환) — 프론트 마이페이지에서 "지원 완료만 보기" 같은 탭에 사용 가능
+- `page`/`size`로 페이지네이션, 정렬은 `member_job_apply.created_at DESC` (최근 상호작용 순)
+- `applied_at`/`created_at`/`end_at`은 `jobs_router.py`와 동일하게 date/datetime 객체를 문자열로 변환해서 반환
 
 ## 7. 다음 단계
 
-`docs/백엔드_개발_기능_정리.md`에서 정리한 순서대로 채용공고 API(`GET /jobs`, `PATCH /jobs/{post_id}/apply`) → 지원 현황 API → 포트폴리오 API(테이블 신규 생성 필요) 순으로 이어가면 됩니다. 각 단계가 끝나면 4번 표와 6번 메모에 내용을 추가해주세요.
+인증/회원/채용공고/포트폴리오/지원 현황 API까지 구현 완료. 관리자 크롤링 트리거 API(`POST /jobs/crawl`)는 팀 결정으로 진행하지 않기로 함 — 크롤링은 기존대로 `crawl3.py` + crontab 자동 실행만 사용.
+
+남은 건 API 구현이 아니라 배포/운영 작업입니다: FastAPI systemd 서비스 등록, 업로드 폴더(`/var/www/html/uploads/portfolio`) 쓰기 권한 확인, 실제 라즈베리파이 MariaDB 대상 라이브 테스트, 프론트엔드 실제 연동. 새 API 기능이 추가되면 4번 표와 6번 메모에 이어서 추가해주세요.
