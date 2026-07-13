@@ -25,8 +25,10 @@ CREATE TABLE members (
     user_region           VARCHAR(255),
     user_personal_history VARCHAR(100),
     user_pay              VARCHAR(255),
-    portfolio_img         VARCHAR(500),                            -- 포트폴리오 이미지 경로/URL
-    portfolio_file        VARCHAR(500),                            -- 포트폴리오 파일 경로/URL
+    portfolio_img         VARCHAR(500),                            -- 포폴 이미지 주소(portfolio_img)
+    portfolio_file        VARCHAR(500),                            -- 포폴 파일 주소(portfolio_file)
+    cname                 VARCHAR(255) UNIQUE,                     -- 사용자 지정 별칭(CNAME)
+    portfolio_url         VARCHAR(500),                            -- 별칭으로 접속하는 포트폴리오 URL
     created_at            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at            DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -95,7 +97,7 @@ WHERE job_id = @job_id;
 
 -----------------------------------------------------------------------------------------
 
--- [CREATE] 회원가입 (portfolio 제외)
+-- [CREATE] 회원가입 (portfolio, cname 제외)
 INSERT INTO members
     (email, password, nickname, user_job_part, user_region,
      user_personal_history, user_pay)
@@ -103,13 +105,13 @@ VALUES
     (@email, @password, @nickname, @user_job_part, @user_region,
      @user_personal_history, @user_pay);
 
--- [READ] 단건 조회 (일반 조회 - password, portfolio 제외)
+-- [READ] 단건 조회 (일반 조회 - password, portfolio, cname 제외)
 SELECT member_id, email, nickname, user_job_part, user_region,
        user_personal_history, user_pay, created_at, updated_at
 FROM members
 WHERE member_id = @member_id;
 
--- [READ] 목록 조회 (일반 조회 - password, portfolio 제외)
+-- [READ] 목록 조회 (일반 조회 - password, portfolio, cname 제외)
 SELECT member_id, email, nickname, user_job_part, user_region,
        user_personal_history, user_pay, created_at, updated_at
 FROM members
@@ -122,12 +124,17 @@ SELECT member_id, email, password, nickname, user_job_part,
 FROM members
 WHERE email = @email;
 
--- [READ] 프로필/마이페이지 상세 조회 (portfolio 포함)
+-- [READ] 프로필/마이페이지 상세 조회 (portfolio, cname 포함)
 SELECT member_id, email, nickname, user_job_part, user_region,
        user_personal_history, user_pay, portfolio_img, portfolio_file,
-       created_at, updated_at
+       cname, portfolio_url, created_at, updated_at
 FROM members
 WHERE member_id = @member_id;
+
+-- [READ] 별칭(cname)으로 포트폴리오 페이지 조회 (외부 방문자용, 공개 정보만)
+SELECT member_id, nickname, portfolio_img, portfolio_url
+FROM members
+WHERE cname = @cname;
 
 -- [UPDATE] 닉네임/희망 조건 수정
 UPDATE members
@@ -142,6 +149,12 @@ SET portfolio_img = @portfolio_img,
     portfolio_file = @portfolio_file
 WHERE member_id = @member_id;
 
+-- [UPDATE] 별칭(cname)/포트폴리오 URL 등록/변경
+UPDATE members
+SET cname = @cname,
+    portfolio_url = @portfolio_url
+WHERE member_id = @member_id;
+
 -- [UPDATE] 비밀번호만 별도 변경
 UPDATE members
 SET password = @new_hashed_password
@@ -150,7 +163,6 @@ WHERE member_id = @member_id;
 -- [DELETE]
 DELETE FROM members
 WHERE member_id = @member_id;
-
 ------------------------------------------------------------------------------------
 
 
